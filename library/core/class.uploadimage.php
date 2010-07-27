@@ -137,11 +137,24 @@ class Gdn_UploadImage extends Gdn_Upload {
          throw new Exception(sprintf(T('You cannot save images of this type (%s).'), $Type));
       
       // Create a new image from the raw source
-      if (function_exists('imagecreatetruecolor'))
-         $TargetImage = imagecreatetruecolor($Width, $Height);    // Only exists if GD2 is installed
-      else
+      if (function_exists('imagecreatetruecolor')) {
+          $TargetImage = imagecreatetruecolor($Width, $Height);    // Only exists if GD2 is installed
+         // define the background color (white or transparent)
+         imagesavealpha($TargetImage, true);
+         imagealphablending($TargetImage, true);
+         if ($OutputType == 'png') {
+            // background color is transparent (png format supports it)
+            $bg_color = imagecolortransparent($TargetImage, imagecolorallocatealpha($TargetImage, 0, 0, 0, 127)); // transparent
+            imagesavealpha($TargetImage, true);
+         } else {
+            // background color is white for other formats
+            $bg_color = imagecolorallocate($TargetImage, 255, 255, 255);
+         }
+         imagefill($TargetImage, 0, 0, $bg_color);
+      } else {
          $TargetImage = imagecreate($Width, $Height);             // Always exists if any GD is installed
-         
+      }
+
       imagecopyresampled($TargetImage, $SourceImage, 0, 0, $XCoord, $YCoord, $Width, $Height, $WidthSource, $HeightSource);
       imagedestroy($SourceImage);
       
