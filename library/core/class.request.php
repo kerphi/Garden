@@ -423,7 +423,8 @@ class Gdn_Request {
        */
 
       $UrlParts = explode('/', $this->Path());
-      $LastParam = array_pop(array_slice($UrlParts, -1, 1));
+      $Last = array_slice($UrlParts, -1, 1);
+      $LastParam = array_pop($Last);
       $Match = array();
       if (preg_match('/^(.+)\.([^.]{1,4})$/', $LastParam, $Match)) {
          $this->OutputFormat($Match[2]);
@@ -444,9 +445,13 @@ class Gdn_Request {
          $Key = array_search('index.php', $WebRoot);
          if ($Key !== FALSE) {
             $WebRoot = implode('/', array_slice($WebRoot, 0, $Key));
+         } else {
+            // Could not determine webroot.
+            $Webroot = '';
          }
+         
       }
-
+      
       $ParsedWebRoot = trim($WebRoot,'/');
       $this->WebRoot($ParsedWebRoot);
 
@@ -673,14 +678,14 @@ class Gdn_Request {
       if ($this->WebRoot() != '')
          $Parts[] = $this->WebRoot();
 
+      // Strip out the querystring.
+      $Query = strrchr($Path, '?');
+      if (strlen($Query) > 0)
+         $Path = substr($Path, 0, -strlen($Query));
 
       if (!$RewriteUrls) {
          $Parts[] = $this->_EnvironmentElement('Script').'?p=';
-         $Path = str_replace('?', '&', $Path);
-      } else {
-         $Query = strrchr($Path, '?');
-         if (strlen($Query) > 0)
-            $Path = substr($Path, 0, -strlen($Query));
+         $Query = str_replace('?', '&', $Query);
       }
 
       if($Path == '') {

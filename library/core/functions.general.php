@@ -207,17 +207,26 @@ if (!function_exists('Asset')) {
    /**
     * Takes the path to an asset (image, js file, css file, etc) and prepends the webroot.
     */
-   function Asset($Destination = '', $WithDomain = FALSE) {
+   function Asset($Destination = '', $WithDomain = FALSE, $AddVersion = FALSE) {
       $Destination = str_replace('\\', '/', $Destination);
       if (substr($Destination, 0, 7) == 'http://') {
-         return $Destination;
+         $Result = $Destination;
       } else {
          $Parts = array(Gdn_Url::WebRoot($WithDomain), $Destination);
          if (!$WithDomain)
             array_unshift($Parts, '/');
             
-         return CombinePaths($Parts, '/');
+         $Result = CombinePaths($Parts, '/');
       }
+
+      if ($AddVersion) {
+         if (strpos($Result, '?') === FALSE)
+            $Result .= '?';
+         else
+            $Result .= '&';
+         $Result.= 'v='.urlencode(APPLICATION_VERSION);
+      }
+      return $Result;
    }
 }
 
@@ -302,81 +311,27 @@ if (!function_exists('CheckRequirements')) {
    function CheckRequirements($ItemName, $RequiredItems, $EnabledItems, $RequiredItemTypeCode) {
       // 1. Make sure that $RequiredItems are present
       if (is_array($RequiredItems)) {
+         $MissingRequirements = array();
+
          foreach ($RequiredItems as $RequiredItemName => $RequiredVersion) {
-            if (array_key_exists($RequiredItemName, $EnabledItems) === FALSE) {
-               throw new Exception(
-                  sprintf(
-                     T('%1$s requires the %2$s %3$s version %4$s.'),
-                     $ItemName,
-                     $RequiredItemName,
-                     $RequiredItemTypeCode,
-                     $RequiredVersion
-                  )
-               );
-            } else if (StringIsNullOrEmpty($RequiredVersion) === FALSE) {
+            if (!array_key_exists($RequiredItemName, $EnabledItems)) {
+               $MissingRequirements[] = "$RequiredItemName $RequiredVersion";
+            } else if ($RequiredVersion && $RequiredVersion != '*') { // * means any version
+               $EnabledItems;
+
                 // If the item exists and is enabled, check the version
                $EnabledVersion = ArrayValue('Version', ArrayValue($RequiredItemName, $EnabledItems, array()), '');
-               if ($EnabledVersion !== $RequiredVersion) {
-                  // Check for version ranges (<, <=, >, >=)
-                  $Matches = FALSE;
-                  preg_match_all('/(>|>=|<|<=){1}([\d\.]+)/', $RequiredVersion, $Matches);
-                  if (is_array($Matches) && count($Matches) == 3 && count($Matches[1]) > 0) {
-                     // The matches array should contain a three parts:
-                     /*
-                      eg. The following $RequiredVersion string:
-                        >1.33<=4.1
-                     would result in:
-                        Array (
-                              [0] => Array
-                                  (
-                                      [0] => >1.33
-                                      [1] => <=4.1
-                                  )
-                              [1] => Array
-                                  (
-                                      [0] => >
-                                      [1] => <=
-                                  )
-                              [2] => Array
-                                  (
-                                      [0] => 1.33
-                                      [1] => 4.1
-                                  )
-                          )
-                     */
-
-                     $Operators = $Matches[1];
-                     $Versions = $Matches[2];
-                     $Count = count($Operators);
-                     for ($i = 0; $i < $Count; ++$i) {
-                        $Operator = $Operators[$i];
-                        $MatchVersion = $Versions[$i];
-                        if (!version_compare($EnabledVersion, $MatchVersion, $Operator)) {
-                           throw new Exception(
-                              sprintf(
-                                 T('%1$s requires the %2$s %3$s version %4$s %5$s'),
-                                 $ItemName,
-                                 $RequiredItemName,
-                                 $RequiredItemTypeCode,
-                                 $Operator,
-                                 $MatchVersion
-                              )
-                           );
-                        }
-                     }
-                  } else if ($RequiredVersion != '*' && $RequiredVersion != '') {
-                     throw new Exception(
-                        sprintf(
-                           T('%1$s requires the %2$s %3$s version %4$s'),
-                           $ItemName,
-                           $RequiredItemName,
-                           $RequiredItemTypeCode,
-                           $RequiredVersion
-                        )
-                     );
-                  }
+               // Compare the versions.
+               if (version_compare($EnabledVersion, $RequiredVersion, '<')) {
+                  $MissingRequirements[] = "$RequiredItemName $RequiredVersion";
                }
             }
+         }
+         if (count($MissingRequirements) > 0) {
+            $Msg = sprintf("%s is missing the following requirement(s): %s.",
+               $ItemName,
+               implode(', ', $MissingRequirements));
+            throw new Gdn_UserException($Msg);
          }
       }
    }
@@ -456,8 +411,6 @@ if (!function_exists('ConsolidateArrayValuesByKey')) {
    }
 }
 
-/*
- We now support PHP 5.2.0 - Which should make this declaration unnecessary.
 if (!function_exists('filter_input')) {
    if (!defined('INPUT_GET')) define('INPUT_GET', 'INPUT_GET');
    if (!defined('INPUT_POST')) define('INPUT_POST', 'INPUT_POST');
@@ -479,7 +432,6 @@ if (!function_exists('filter_input')) {
       return $Value;     
    }
 }
-*/
 
 if (!function_exists('ForceBool')) {
    function ForceBool($Value, $DefaultValue = FALSE, $True = TRUE, $False = FALSE) {
@@ -1032,7 +984,7 @@ if (!function_exists('ProxyRequest')) {
          if(strlen($Cookie) > 0)
             $Cookie = "Cookie: $Cookie\r\n";
          
-         $HostHeader = $Host.($Post != 80) ? ":{$Port}" : '';
+         $HostHeader = $Host.(($Port != 80) ? ":{$Port}" : '');
          $Header = "GET $Path?$Query HTTP/1.1\r\n"
             ."Host: {$HostHeader}\r\n"
             // If you've got basic authentication enabled for the app, you're going to need to explicitly define the user/pass for this fsock call

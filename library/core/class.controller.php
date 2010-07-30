@@ -319,7 +319,7 @@ class Gdn_Controller extends Gdn_Pluggable {
       $this->_Json = array();
       $this->_Headers = array(
          'Expires' =>  'Mon, 26 Jul 1997 05:00:00 GMT', // Make sure the client always checks at the server before using it's cached copy.
-         'X-Powered-By' => APPLICATION.' '.APPLICATION_VERSION,
+         'X-Garden-Version' => APPLICATION.' '.APPLICATION_VERSION,
          'Content-Type' => Gdn::Config('Garden.ContentType', '').'; charset='.Gdn::Config('Garden.Charset', ''), // PROPERLY ENCODE THE CONTENT
          'Last-Modified' => gmdate('D, d M Y H:i:s') . ' GMT' // PREVENT PAGE CACHING: always modified (this can be overridden by specific controllers)
          // $Dispatcher->Header('Cache-Control', 'no-cache, must-revalidate'); // PREVENT PAGE CACHING: HTTP/1.1
@@ -903,14 +903,10 @@ class Gdn_Controller extends Gdn_Pluggable {
          // success status of the form so that jQuery knows what to do
          // with the result.
          $FormSaved = (property_exists($this, 'Form') && $this->Form->ErrorCount() == 0) ? TRUE : FALSE;
-
+         
          $this->SetJson('FormSaved', $FormSaved);
          $this->SetJson('DeliveryType', $this->_DeliveryType);
-         if($View instanceof Gdn_IModule) {
-            $this->SetJson('Data', $View->ToString());
-         } else {
-            $this->SetJson('Data', $View);
-         }
+         $this->SetJson('Data', base64_encode(($View instanceof Gdn_IModule) ? $View->ToString() : $View));
          $this->SetJson('StatusMessage', $this->StatusMessage);
          $this->SetJson('RedirectUrl', $this->RedirectUrl);
 

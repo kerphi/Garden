@@ -62,15 +62,15 @@ jQuery(document).ready(function($) {
       postValues += '&Type='+type;
       var discussionID = $(frm).find('[name$=DiscussionID]');
       var prefix = discussionID.attr('name').replace('DiscussionID', '');
-      var discussionID = discussionID.val();
+      discussionID = discussionID.val();
       // Get the last comment id on the page
       var comments = $('ul.Discussion li.Comment');
       var lastComment = $(comments).get(comments.length-1);
       var lastCommentID = $(lastComment).attr('id');
-      var lastCommentID = lastCommentID.indexOf('Discussion_') == 0 ? 0 : lastCommentID.replace('Comment_', '');
+      lastCommentID = lastCommentID.indexOf('Discussion_') == 0 ? 0 : lastCommentID.replace('Comment_', '');
       postValues += '&' + prefix + 'LastCommentID=' + lastCommentID;
       var action = $(frm).attr('action') + '/' + discussionID;
-      $(frm).find(':submit').attr('disabled', 'disabled');            
+      $(frm).find(':submit').attr('disabled', 'disabled');
       $(parent).find('div.Tabs ul:first').after('<span class="TinyProgress">&nbsp;</span>');
       // Also add a spinner for comments being edited
       $(btn).parents('div.Comment').find('div.Meta span:last').after('<span class="TinyProgress">&nbsp;</span>');
@@ -82,11 +82,26 @@ jQuery(document).ready(function($) {
          error: function(XMLHttpRequest, textStatus, errorThrown) {
             // Remove any old popups
             $('.Popup,.Overlay').remove();
-            $.popup({}, XMLHttpRequest.responseText);
+            var msg;
+            if (XMLHttpRequest.responseText)
+               msg = XMLHttpRequest.responseText;
+            else {
+               msg = '<h1>Error</h1><p class="Wrap">';
+               if(textStatus == 'timeout')
+                  msg += 'Your request took too long to complete and timed out. Please try again.';
+               else
+                  msg += textStatus;
+               msg += '</div>';
+            }
+
+
+            $.popup({}, msg);
          },
          success: function(json) {
+            json = $.postParseJson(json);
+            
             // If there is a redirect url, go to it
-            if (json.RedirectUrl != null && json.RedirectUrl.trim() != '') {
+            if (json.RedirectUrl != null && jQuery.trim(json.RedirectUrl) != '') {
                resetCommentForm(btn);
                clearCommentForm(btn);               
                window.location.replace(json.RedirectUrl);
@@ -97,9 +112,14 @@ jQuery(document).ready(function($) {
             var processedTargets = false;
             // If there are targets, process them
             if (json.Targets && json.Targets.length > 0) {
-               json.Targets[0].Data = json.Data;
+               for(i = 0; i < json.Targets.length; i++) {
+                  if (json.Targets[i].Type != "Ajax") {
+                     json.Targets[i].Data = json.Data;
+                     processedTargets = true;
+                     break;
+                   }
+               }
                gdn.processTargets(json.Targets);
-               processedTargets = true;
             }
 
             // Remove any old popups if not saving as a draft
@@ -162,6 +182,7 @@ jQuery(document).ready(function($) {
                $(frm).triggerHandler('complete');
             }
             gdn.inform(json.StatusMessage);
+            return false;
          },
          complete: function(XMLHttpRequest, textStatus) {
             // Remove any spinners, and re-enable buttons.
@@ -242,6 +263,8 @@ jQuery(document).ready(function($) {
                $.popup({}, XMLHttpRequest.responseText);
             },
             success: function(json) {
+               json = $.postParseJson(json);
+               
                $(msg).after(json.Data);
                $(msg).hide();
                $(parent).find('span.TinyProgress').remove();
@@ -298,7 +321,9 @@ jQuery(document).ready(function($) {
                // Popup the error
                $.popup({}, XMLHttpRequest.responseText);
             },
-            success: function(json) {               
+            success: function(json) {
+               json = $.postParseJson(json);
+               
                if(json.Data && json.LastCommentID) {
                   gdn.definition('LastCommentID', json.LastCommentID, true);
                   $(json.Data).appendTo("ul.Discussion")
